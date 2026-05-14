@@ -1,6 +1,6 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
-const pdfParse = require('pdf-parse');
+const { parsePdfBuffer } = require('./pdfText');
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (compatible; PaperLensBot/1.0)',
@@ -30,8 +30,8 @@ async function fetchTextFromURL(url) {
 
   const contentType = response.headers['content-type'] || '';
   if (contentType.includes('application/pdf')) {
-    const data = await pdfParse(Buffer.from(response.data));
-    return (data.text || '').replace(/\s+/g, ' ').trim().slice(0, 20000);
+    const text = await parsePdfBuffer(Buffer.from(response.data));
+    return text.replace(/\s+/g, ' ').trim().slice(0, 20000);
   }
 
   const html = Buffer.from(response.data).toString('utf8');
@@ -55,8 +55,8 @@ async function fetchPdfText(url) {
     responseType: 'arraybuffer',
   });
 
-  const data = await pdfParse(Buffer.from(response.data));
-  return (data.text || '').replace(/\s+/g, ' ').trim().slice(0, 20000);
+  const text = await parsePdfBuffer(Buffer.from(response.data));
+  return text.replace(/\s+/g, ' ').trim().slice(0, 20000);
 }
 
 async function fetchArxiv(url) {

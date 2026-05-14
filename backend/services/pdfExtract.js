@@ -1,5 +1,5 @@
-const pdfParse = require('pdf-parse');
 const fs = require('fs');
+const { parsePdfBuffer } = require('./pdfText');
 
 /**
  * Extracts plain text from a PDF file on disk.
@@ -8,8 +8,7 @@ const fs = require('fs');
  */
 async function extractTextFromPDF(filePath) {
   const dataBuffer = fs.readFileSync(filePath);
-  const data = await pdfParse(dataBuffer);
-  return data.text || '';
+  return parsePdfBuffer(dataBuffer);
 }
 
 module.exports = { extractTextFromPDF };
