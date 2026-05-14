@@ -1,73 +1,101 @@
-# React + TypeScript + Vite
+# PaperLens AI Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the React + TypeScript frontend for PaperLens AI. It provides the product flow for adding a paper, watching analysis progress, and viewing a visual explanation page.
 
-Currently, two official plugins are available:
+## What It Does
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Accepts paper input by PDF, URL, or pasted text
+- Sends submissions to the backend API
+- Shows a processing screen with progress polling
+- Renders a visual result page with summary, concepts, math, preview, mind map, learning cards, and related topics
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React
+- TypeScript
+- Vite
+- React Router
+- Axios
+- Custom CSS
 
-## Expanding the ESLint configuration
+## Setup
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd frontend
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Create `frontend/.env`:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```env
+VITE_API_URL=http://localhost:5000/api
 ```
+
+Start development server:
+
+```bash
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:5173
+```
+
+## Environment Variables
+
+| Variable | Description |
+| --- | --- |
+| `VITE_API_URL` | Backend API base URL. Example: `http://localhost:5000/api` |
+
+All frontend API calls use `src/services/api.ts`, so changing `VITE_API_URL` updates the backend connection in one place. Restart Vite after changing `.env`.
+
+## Important Files
+
+```text
+src/
+├── App.tsx
+├── main.tsx
+├── pages/
+│   ├── Home.tsx
+│   ├── Processing.tsx
+│   └── Explanation.tsx
+├── components/
+│   ├── SummaryCard.tsx
+│   ├── KeyConcepts.tsx
+│   ├── MathMadeSimple.tsx
+│   ├── PaperPreview.tsx
+│   ├── MindMap.tsx
+│   ├── VisualLearningCards.tsx
+│   └── RelatedTopics.tsx
+├── services/
+│   └── api.ts
+└── styles/
+    └── globals.css
+```
+
+## Scripts
+
+```bash
+npm run dev      # start Vite dev server
+npm run build    # production build
+npm run lint     # run ESLint
+npm run preview  # preview production build
+```
+
+## Backend Contract
+
+The frontend expects these endpoints:
+
+```text
+POST /api/papers/upload
+GET  /api/papers/:id/status
+GET  /api/papers/:id
+POST /api/papers/:id/retry
+```
+
+## Notes
+
+- External paper websites such as arXiv may block iframe previews, so the UI shows an open-source link card.
+- `.env` contains local configuration and should not be committed with real secrets.

@@ -111,6 +111,11 @@ function extractTitle(text) {
   return 'Research paper analysis';
 }
 
+function extractAbstract(text) {
+  const abstractMatch = text.match(/abstract[:\s]+(.{120,1400}?)(?:introduction|keywords|1\s+introduction|$)/i);
+  return (abstractMatch?.[1] || text).replace(/\s+/g, ' ').trim();
+}
+
 function detectConcepts(text) {
   const candidates = [
     'Transformers',
@@ -125,6 +130,10 @@ function detectConcepts(text) {
     'Generalization',
     'Message passing',
     'Semantic search',
+    'Self-attention',
+    'Multi-head attention',
+    'Positional encoding',
+    'Machine translation',
   ];
 
   const lower = text.toLowerCase();
@@ -138,58 +147,97 @@ function fallbackAnalysis(text, reason = 'Gemini was unavailable') {
   const normalized = String(text || '').replace(/\s+/g, ' ').trim();
   const title = extractTitle(normalized);
   const concepts = detectConcepts(normalized);
-  const summarySeed = normalized.slice(0, 240) || 'The paper presents a research idea and explains how it is evaluated.';
+  const abstract = extractAbstract(normalized);
+  const lower = normalized.toLowerCase();
+  const isTransformerPaper = lower.includes('attention is all you need') || lower.includes('transformer');
+  const hasAttentionEquation = isTransformerPaper || lower.includes('softmax') || lower.includes('qk');
 
   return {
     summary: {
       title,
-      category: 'Research',
+      category: isTransformerPaper ? 'Natural Language Processing' : 'Research',
       difficulty: 'Intermediate',
-      oneLiner: `This paper studies ${summarySeed.toLowerCase()}`,
-      problemSolved: 'It addresses a research problem described in the paper and explains why a structured method is useful.',
-      methodUsed: 'The method is extracted from the paper text and summarized into beginner-friendly steps.',
+      oneLiner: isTransformerPaper
+        ? 'The paper introduces the Transformer, a faster sequence model built around attention instead of recurrence or convolution.'
+        : abstract.slice(0, 260),
+      problemSolved: isTransformerPaper
+        ? 'It solves the problem of slow, hard-to-parallelize sequence transduction models used for tasks like machine translation.'
+        : 'It addresses the central research problem described in the paper and explains why the proposed method matters.',
+      methodUsed: isTransformerPaper
+        ? 'The method uses self-attention, multi-head attention, positional encodings, and feed-forward layers.'
+        : 'The paper proposes a structured method and evaluates it through the evidence described in the text.',
     },
-    concepts,
+    concepts: isTransformerPaper
+      ? ['Transformer', 'Self-attention', 'Multi-head attention', 'Positional encoding', 'Machine translation', 'Sequence modeling']
+      : concepts,
     math: {
-      hasEquation: false,
-      equation: '',
-      equationMeaning: '',
-      symbols: [],
-      steps: [],
-      humanExplanation: 'No major mathematical equation was confidently extracted from the available text.',
+      hasEquation: hasAttentionEquation,
+      equation: hasAttentionEquation ? 'Attention(Q, K, V) = softmax(QK^T / sqrt(d_k))V' : '',
+      equationMeaning: hasAttentionEquation
+        ? 'The equation scores how strongly each token should attend to every other token, then mixes the value vectors using those scores.'
+        : '',
+      symbols: hasAttentionEquation
+        ? [
+            { symbol: 'Q', meaning: 'query vectors representing what each token is looking for' },
+            { symbol: 'K', meaning: 'key vectors representing what each token offers for matching' },
+            { symbol: 'V', meaning: 'value vectors containing the information to pass forward' },
+            { symbol: 'd_k', meaning: 'the key vector size, used to keep scores numerically stable' },
+          ]
+        : [],
+      steps: hasAttentionEquation
+        ? [
+            'Compare queries with keys using QK^T.',
+            'Scale the scores by sqrt(d_k) so they do not become too large.',
+            'Use softmax to turn scores into attention weights.',
+            'Multiply those weights by V to blend useful information from other tokens.',
+          ]
+        : [],
+      humanExplanation: hasAttentionEquation
+        ? 'Each word asks which other words matter most. Attention gives every word a weighted mix of information from the rest of the sentence.'
+        : 'No major mathematical equation was confidently extracted from the available text.',
     },
     mindMap: {
       root: title,
       children: [
-        { label: 'Problem', children: [{ label: 'What the paper tries to solve' }] },
-        { label: 'Method', children: [{ label: 'How the paper approaches the problem' }] },
-        { label: 'Evidence', children: [{ label: 'Experiments, examples, or arguments' }] },
-        { label: 'Next steps', children: [{ label: 'Topics to learn after reading' }] },
+        { label: 'Problem', children: [{ label: isTransformerPaper ? 'Slow recurrent sequence models' : 'What the paper tries to solve' }] },
+        { label: 'Method', children: [{ label: isTransformerPaper ? 'Self-attention layers' : 'How the paper approaches the problem' }] },
+        { label: 'Evidence', children: [{ label: isTransformerPaper ? 'Machine translation benchmarks' : 'Experiments, examples, or arguments' }] },
+        { label: 'Applications', children: [{ label: isTransformerPaper ? 'Language models and translation systems' : 'Related real-world use cases' }] },
       ],
     },
     learningCards: [
       {
         question: 'What problem does this paper solve?',
-        answer: 'It focuses on the central research problem described in the text and explains why that problem matters.',
+        answer: isTransformerPaper
+          ? 'It makes sequence modeling faster and more parallelizable by replacing recurrence with attention.'
+          : 'It focuses on the central research problem described in the text and explains why that problem matters.',
       },
       {
         question: 'What is the main idea?',
-        answer: 'The main idea is to use the paper method to make the problem easier to solve or understand.',
+        answer: isTransformerPaper
+          ? 'The main idea is that tokens can understand context by directly attending to other tokens instead of processing one step at a time.'
+          : 'The main idea is to use the paper method to make the problem easier to solve or understand.',
       },
       {
         question: 'Why does the method work?',
-        answer: 'The method works by organizing the input information, applying a repeatable approach, and checking results against evidence.',
+        answer: isTransformerPaper
+          ? 'Self-attention lets the model connect distant words directly, while multi-head attention learns several relationship types at once.'
+          : 'The method works by organizing the input information, applying a repeatable approach, and checking results against evidence.',
       },
       {
         question: 'Where can this be applied?',
-        answer: 'It can be applied in related research or engineering settings where similar data, models, or evaluation goals appear.',
+        answer: isTransformerPaper
+          ? 'It applies to translation, summarization, search, chatbots, code models, and many modern language systems.'
+          : 'It can be applied in related research or engineering settings where similar data, models, or evaluation goals appear.',
       },
       {
         question: 'What should I learn next?',
-        answer: `Start with ${concepts.slice(0, 3).join(', ')} and then read the paper's experiments or limitations section.`,
+        answer: `Start with ${(isTransformerPaper ? ['self-attention', 'embeddings', 'positional encoding'] : concepts.slice(0, 3)).join(', ')} and then read the paper's experiments section.`,
       },
     ],
-    relatedTopics: concepts,
+    relatedTopics: isTransformerPaper
+      ? ['Transformer architecture', 'Self-attention', 'Embeddings', 'Sequence modeling', 'Large language models']
+      : concepts,
     fallbackReason: reason,
   };
 }
@@ -203,15 +251,30 @@ async function analyzePaper(text) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
-    });
-
     const truncated = String(text || '').slice(0, 12000);
-    const result = await model.generateContent(ANALYSIS_PROMPT + truncated);
-    const response = await result.response;
+    const modelNames = [
+      process.env.GEMINI_MODEL,
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-lite',
+    ].filter(Boolean);
 
-    return extractJson(response.text());
+    let lastError = null;
+
+    for (const modelName of [...new Set(modelNames)]) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(ANALYSIS_PROMPT + truncated);
+        const response = await result.response;
+
+        return extractJson(response.text());
+      } catch (err) {
+        lastError = err;
+        console.warn(`Gemini model ${modelName} failed: ${err.message}`);
+      }
+    }
+
+    throw lastError || new Error('No Gemini model was available.');
   } catch (err) {
     console.warn(`Gemini analysis fallback used: ${err.message}`);
     return fallbackAnalysis(text, err.message);

@@ -1,136 +1,205 @@
-# PaperLens AI — Backend
+# PaperLens AI Backend
 
-Express.js + PostgreSQL + Google Gemini backend for PaperLens AI.
+Express.js backend for PaperLens AI. It accepts paper input, extracts text, sends content to Gemini, stores status and results in PostgreSQL, and exposes the API consumed by the frontend.
 
-## Folder Structure
+## Tech Stack
 
-```
-paperlens-backend/
-├── server.js              ← Entry point
-├── package.json
-├── .env.example
-├── db/
-│   ├── index.js           ← PostgreSQL pool
-│   └── schema.sql         ← Run once to create tables
-├── routes/
-│   └── papers.js          ← All API endpoints
-├── services/
-│   ├── gemini.js          ← AI analysis + prompt
-│   ├── pdfExtract.js      ← PDF → text
-│   └── urlFetch.js        ← URL scraping (arXiv support)
-└── middleware/
-    └── upload.js          ← Multer PDF upload handler
-```
+- Node.js
+- Express.js
+- PostgreSQL
+- Google Gemini API
+- Multer for PDF upload
+- `pdf-parse` for PDF text extraction
+- Axios + Cheerio for paper URL extraction
 
 ## Setup
 
-### 1. Install dependencies
 ```bash
+cd backend
 npm install
 ```
 
-### 2. Set up environment
-```bash
-cp .env.example .env
-# Fill in your values in .env
+Create `backend/.env`:
+
+```env
+PORT=5000
+FRONTEND_URL=http://localhost:5173
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/paperlens
+GEMINI_API_KEY=YOUR_GEMINI_KEY
+GEMINI_MODEL=gemini-2.5-flash
+NODE_ENV=development
 ```
 
-### 3. Set up PostgreSQL
-```bash
-# Create database
-psql -U postgres -c "CREATE DATABASE paperlens;"
+Set up PostgreSQL:
 
-# Run schema
+```bash
+psql -U postgres -c "CREATE DATABASE paperlens;"
 psql -U postgres -d paperlens -f db/schema.sql
 ```
 
-### 4. Get Gemini API key (free)
-→ https://ai.google.dev/gemini-api/docs/pricing
+Start backend:
 
-### 5. Start the server
 ```bash
-npm run dev     # development (nodemon)
-npm start       # production
+npm run dev
 ```
 
----
+Health check:
+
+```text
+http://localhost:5000/api/health
+```
+
+## Folder Structure
+
+```text
+backend/
+├── server.js
+├── package.json
+├── .env
+├── db/
+│   ├── index.js
+│   └── schema.sql
+├── middleware/
+│   └── upload.js
+├── routes/
+│   └── papers.js
+└── services/
+    ├── gemini.js
+    ├── pdfExtract.js
+    └── urlFetch.js
+```
 
 ## API Endpoints
 
-### POST /api/papers
-Submit paper for analysis.
+### `GET /api/health`
 
-**Form data (multipart):**
-| Field       | Type   | Description                        |
-|-------------|--------|------------------------------------|
-| inputType   | string | `text`, `pdf`, or `url`            |
-| title       | string | Optional paper title               |
-| text        | string | Required if inputType = text       |
-| url         | string | Required if inputType = url        |
-| pdf         | file   | Required if inputType = pdf        |
+Returns backend health and active storage mode.
 
-**Response 202:**
-```json
-{ "paperId": "uuid", "status": "pending" }
-```
-
----
-
-### GET /api/papers/:id
-Poll for analysis result.
-
-**Response:**
 ```json
 {
-  "id": "uuid",
-  "status": "pending | processing | completed | failed",
-  "result": { ... },
-  "error_message": null
+  "status": "ok",
+  "storage": "postgres",
+  "timestamp": "2026-05-14T12:57:36.332Z"
 }
 ```
 
-Poll every 2 seconds until `status === "completed"`.
+### `POST /api/papers/upload`
 
----
+Submits a paper for analysis. Use multipart form data.
 
-### POST /api/papers/:id/retry
-Retry a failed analysis.
+Fields:
 
----
-
-### GET /api/papers
-List last 20 papers (history).
-
----
-
-## Frontend connection
-
-1. Copy `frontend-api.js` to `src/services/api.js` in your React project.
-2. Add to your frontend `.env`:
-   ```
-   VITE_API_URL=http://localhost:5000
-   ```
-3. Usage example:
-```js
-import { submitPaper, pollPaper } from './services/api';
-
-// On form submit:
-const { paperId } = await submitPaper({ inputType: 'text', text: abstractText });
-
-// Poll for result:
-const paper = await pollPaper(paperId, {
-  onStatus: (status) => setProcessingStep(status),
-});
-
-// paper.result has all the AI data
-setResult(paper.result);
+```text
+title  optional
+text   pasted abstract or paper text
+url    paper URL
+file   PDF file
 ```
 
-## How async processing works
+Response:
 
-1. User submits paper → backend creates a DB record with `status: pending` and returns `paperId` immediately (202).
-2. `setImmediate()` triggers `processAnalysis()` in the background (after HTTP response is sent).
-3. Background function updates status to `processing`, calls Gemini, then sets `completed` or `failed`.
-4. Frontend polls `GET /api/papers/:id` every 2 seconds and reads the status.
+```json
+{
+  "message": "Paper submitted. Analysis started.",
+  "paperId": "uuid",
+  "status": "pending",
+  "progress": 5
+}
+```
 
-No Redis or queue needed — `setImmediate` is sufficient for a single-server deployment.
+### `GET /api/papers/:id/status`
+
+Returns the current job status.
+
+```json
+{
+  "paperId": "uuid",
+  "status": "processing",
+  "progress": 55,
+  "error": null
+}
+```
+
+### `GET /api/papers/:id`
+
+Returns the frontend-ready result object.
+
+```json
+{
+  "id": "uuid",
+  "status": "completed",
+  "title": "Paper title",
+  "summary": "One-line summary",
+  "category": "NLP",
+  "difficulty": "Intermediate",
+  "method": "Method used",
+  "concepts": ["Concept"],
+  "equations": [],
+  "mindMap": { "nodes": [], "connections": [] },
+  "learningCards": [],
+  "relatedTopics": []
+}
+```
+
+### `POST /api/papers/:id/retry`
+
+Retries a failed or completed analysis using the stored raw text.
+
+## Async Processing
+
+The backend creates a paper row with `pending` status and returns immediately. It then starts analysis using `setImmediate()`, updates progress, calls Gemini, and stores the completed result. The frontend polls `/api/papers/:id/status` until the status becomes `completed` or `failed`.
+
+## AI Prompt
+
+The exact prompt is defined in `services/gemini.js` as `ANALYSIS_PROMPT`. It asks Gemini to return only valid JSON with this structure:
+
+```json
+{
+  "summary": {
+    "title": "...",
+    "category": "...",
+    "difficulty": "...",
+    "oneLiner": "...",
+    "problemSolved": "...",
+    "methodUsed": "..."
+  },
+  "concepts": ["..."],
+  "math": {
+    "hasEquation": true,
+    "equation": "...",
+    "equationMeaning": "...",
+    "symbols": [{ "symbol": "...", "meaning": "..." }],
+    "steps": ["..."],
+    "humanExplanation": "..."
+  },
+  "mindMap": {
+    "root": "...",
+    "children": []
+  },
+  "learningCards": [{ "question": "...", "answer": "..." }],
+  "relatedTopics": ["..."]
+}
+```
+
+## Database
+
+Schema file:
+
+```text
+db/schema.sql
+```
+
+Main table:
+
+```text
+papers
+```
+
+Stores title, input type, raw extracted text, source URL, PDF URL, status, progress, error message, result JSON, and timestamps.
+
+## Notes
+
+- Keep `backend/.env` private.
+- The backend includes an in-memory fallback for local development, but PostgreSQL is the expected storage mode.
+- Direct arXiv abstract URLs are extracted using the arXiv page content.
+- Direct PDF URLs are downloaded and parsed using `pdf-parse`.
